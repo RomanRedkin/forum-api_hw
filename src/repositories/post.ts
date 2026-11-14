@@ -1,16 +1,20 @@
-import type { PostgresClient } from "@prisma/orm-postgres/runtime";
-import type { Post, Category } from "../domain/post/entity.js";
-import type { Contract } from "../prisma/contract.d.js";
-
-
+import type { Post } from "../domain/post/entity.js";
+import type { PostRepository } from "../domain/post/repository.js";
+import type { Database } from "../prisma/db.js";
 
 const formatPostResponse = (postItem: any): Post => {
     return {
         id: postItem.id,
         title: postItem.title,
         content: postItem.content,
-        author: postItem.author,
+        authorId: postItem.authorId,
         categoryId: postItem.categoryId,
+        ...(postItem.author && {
+            author: {
+                id: postItem.author.id,
+                email: postItem.author.email,
+            },
+        }),
         ...(postItem.category && {
             category: {
                 id: postItem.category.id,
@@ -19,84 +23,59 @@ const formatPostResponse = (postItem: any): Post => {
         }),
     };
 };
-// Не работает с PostgresClient<Contract>
-export function createPostRepository(db: any) {
-    return {
-        async getAll(categoryName?: string, take?: number): Promise<Post[]> {
-            if (categoryName) {
-                const categoryWithPosts = await db.orm.Category.findUnique({
-                    where: { name: categoryName },
-                    include: {
-                        posts: {
-                            take,
-                            include: { category: true },
-                        },
-                    },
-                });
 
-                return (categoryWithPosts?.posts || []).map((postItem: any) => formatPostResponse(postItem));
+export function createPostRepository(db: Database): PostRepository {
+    const postsWithRelations = () => db.orm.public.Post.include("category").include("author");
+
+    return {
+        async getAll(categoryName, take, categoryId) {
+            if (categoryName !== undefined) {
+                const category = await db.orm.public.Category.where({ name: categoryName }).first();
+                if (!category) {
+                    return [];
+                }
+                categoryId = category.id;
             }
 
-            const allPosts = await db.orm.Post.findMany({
-                take,
-                include: { category: true },
-            });
+            const filter = categoryId !== undefined ? { categoryId } : {};
+            const query = postsWithRelations().where(filter).orderBy((post) => post.id.asc());
 
-            return allPosts.map((postItem: any) => formatPostResponse(postItem));
+            const allPosts = take !== undefined ? await query.limit(take).all() : await query.all();
+
+            return allPosts.map((postItem) => formatPostResponse(postItem));
         },
 
-        async getById(id: number): Promise<Post | null> {
-            const foundPost = await db.orm.Post.findUnique({
-                where: { id },
-                include: { category: true },
-            });
+        async getById(id) {
+            const foundPost = await postsWithRelations().where({ id }).first();
 
             return foundPost ? formatPostResponse(foundPost) : null;
         },
 
-        async addPost(post: Omit<Post, "id" | "category">): Promise<Post> {
+        async getByAuthorId(authorId) {
+            const authorPosts = await postsWithRelations()
+                .where({ authorId })
+                .orderBy((post) => post.id.asc())
+                .all();
+
+            return authorPosts.map((postItem) => formatPostResponse(postItem));
+        },
+
+        async addPost(post) {
             try {
-                const createdPost = await db.orm.Post.create({
-                    data: post,
-                    include: { category: true },
+                const createdPost = await postsWithRelations().create({
+                    title: post.title,
+                    content: post.content,
+                    category: (category) => category.connect({ id: post.categoryId }),
+                    author: (author) => author.connect({ id: post.authorId }),
                 });
 
                 return formatPostResponse(createdPost);
             } catch (error: any) {
-                if (["P2003", "P2025"].includes(error?.code)) {
+                if (error?.code === "ORM.RELATION_ROW_MISSING") {
+                    if (String(error.message).includes('"author"')) {
+                        throw new Error("AUTHOR_NOT_FOUND");
+                    }
                     throw new Error("CATEGORY_NOT_FOUND");
-                }
-                throw error;
-            }
-        },
-
-        async getAllCategories(): Promise<Category[]> {
-            const allCategories = await db.orm.Category.findMany({
-                select: {
-                    id: true,
-                    name: true,
-                },
-            });
-
-            return allCategories.map((categoryItem: any) => ({
-                id: categoryItem.id,
-                name: categoryItem.name,
-            }));
-        },
-
-        async addCategory(category: Omit<Category, "id">): Promise<Category> {
-            try {
-                const createdCategory = await db.orm.Category.create({
-                    data: category,
-                });
-
-                return {
-                    id: createdCategory.id,
-                    name: createdCategory.name,
-                };
-            } catch (error: any) {
-                if (error?.code === "P2002") {
-                    throw new Error("CATEGORY_ALREADY_EXISTS");
                 }
                 throw error;
             }
