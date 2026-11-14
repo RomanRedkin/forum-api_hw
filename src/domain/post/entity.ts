@@ -1,13 +1,16 @@
-export interface Category {
+import type { Category } from "../category/entity.js";
+
+export interface Author {
     id: number;
-    name: string;
+    email: string;
 }
 
 export interface Post {
     id: number;
     title: string;
     content: string;
-    author: string;
+    authorId: number;
+    author?: Author;
     categoryId: number;
     category?: Category;
 }

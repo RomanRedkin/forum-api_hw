@@ -1,9 +1,8 @@
-import type { Post, Category } from "./entity.js";
+import type { Post } from "./entity.js";
 
 export interface PostRepository {
-    getAll(categoryName?: string, take?: number): Promise<Post[]>;
+    getAll(categoryName?: string, take?: number, categoryId?: number): Promise<Post[]>;
     getById(id: number): Promise<Post | null>;
-    addPost(post: Omit<Post, "id" | "category">): Promise<Post>;
-    getAllCategories(): Promise<Category[]>;
-    addCategory(category: Omit<Category, "id">): Promise<Category>;
+    getByAuthorId(authorId: number): Promise<Post[]>;
+    addPost(post: Omit<Post, "id" | "category" | "author">): Promise<Post>;
 }
