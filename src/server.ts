@@ -3,6 +3,7 @@ import cookieParser from "cookie-parser";
 import { createPostRepository } from "./repositories/post.js";
 import { createCategoryRepository } from "./repositories/category.js";
 import { createUserRepository } from "./repositories/user.js";
+import { createRefreshSessionRepository } from "./repositories/refresh-session.js";
 import { createPostService } from "./services/post.js";
 import { createCategoryService } from "./services/category.js";
 import { createAuthService } from "./services/auth.js";
@@ -37,7 +38,8 @@ const categoryHandlers = createCategoryHandlers(categoryService);
 const categoryRouter = createCategoryRouter(categoryHandlers);
 
 const userRepository = createUserRepository(db);
-const authService = createAuthService(userRepository, passwordHasher, jwt, jwt);
+const refreshSessionRepository = createRefreshSessionRepository(db);
+const authService = createAuthService(userRepository, refreshSessionRepository, passwordHasher, jwt, jwt);
 const authHandlers = createAuthHandlers(authService);
 const authRouter = createAuthRouter(authHandlers, requireAuth);
 

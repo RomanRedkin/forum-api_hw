@@ -1,9 +1,10 @@
 // use prisma-8
 model User {
-    id       Int    @id @default(autoincrement())
-    email    String @unique
+    id       Int              @id @default(autoincrement())
+    email    String           @unique
     password String
     posts    Post[]
+    sessions RefreshSession[]
 }
 
 model Post {
@@ -20,4 +21,13 @@ model Category {
     id    Int    @id @default(autoincrement())
     name  String @unique
     posts Post[]
+}
+
+model RefreshSession {
+    id        Int      @id @default(autoincrement())
+    userId    Int
+    tokenHash String   @unique
+    expiresAt DateTime
+    createdAt DateTime @default(now())
+    user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
