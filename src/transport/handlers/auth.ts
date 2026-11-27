@@ -1,4 +1,4 @@
-import type { Request, Response } from "express";
+import type { CookieOptions, Request, Response } from "express";
 import type { AuthService, AuthTokens } from "../../services/auth.types.js";
 
 export interface AuthHandlers {
@@ -6,24 +6,28 @@ export interface AuthHandlers {
     login(req: Request, res: Response): Promise<void>;
     refresh(req: Request, res: Response): Promise<void>;
     me(req: Request, res: Response): Promise<void>;
+    logout(req: Request, res: Response): Promise<void>;
 }
 
 const secure = process.env.NODE_ENV === "production";
 
+const baseCookieOptions: CookieOptions = { httpOnly: true, secure, sameSite: "lax" };
+const accessCookieOptions: CookieOptions = { ...baseCookieOptions, path: "/" };
+const refreshCookieOptions: CookieOptions = { ...baseCookieOptions, path: "/auth" };
+
+function clearAuthCookies(res: Response): void {
+    res.clearCookie("accessToken", accessCookieOptions);
+    res.clearCookie("refreshToken", refreshCookieOptions);
+}
+
 function setAuthCookies(res: Response, tokens: AuthTokens): void {
     res.cookie("accessToken", tokens.accessToken, {
-        httpOnly: true,
-        secure,
-        sameSite: "lax",
+        ...accessCookieOptions,
         maxAge: 15 * 60 * 1000,
-        path: "/",
     });
     res.cookie("refreshToken", tokens.refreshToken, {
-        httpOnly: true,
-        secure,
-        sameSite: "lax",
+        ...refreshCookieOptions,
         maxAge: 7 * 24 * 60 * 60 * 1000,
-        path: "/auth",
     });
 }
 
@@ -105,6 +109,18 @@ export function createAuthHandlers(service: AuthService): AuthHandlers {
                     res.status(401).json({ message: "Unauthorized" });
                     return;
                 }
+                console.error(error);
+                res.status(500).json({ message: "Internal server error" });
+            }
+        },
+
+        async logout(req, res) {
+            try {
+                const token = req.cookies?.refreshToken;
+                await service.logout(typeof token === "string" ? token : undefined);
+                clearAuthCookies(res);
+                res.status(200).json({ message: "Logged out" });
+            } catch (error) {
                 console.error(error);
                 res.status(500).json({ message: "Internal server error" });
             }

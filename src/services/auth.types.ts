@@ -21,6 +21,7 @@ export interface PasswordHasher {
 export interface TokenSigner {
     signAccessToken(userId: number): string;
     signRefreshToken(userId: number): string;
+    hashRefreshToken(token: string): string;
 }
 
 export interface TokenVerifier {
@@ -33,4 +34,5 @@ export interface AuthService {
     login(input: AuthInput): Promise<{ user: AuthUser } & AuthTokens>;
     refresh(refreshToken: string): Promise<AuthTokens>;
     me(userId: number): Promise<AuthUser>;
+    logout(refreshToken: string | undefined): Promise<void>;
 }

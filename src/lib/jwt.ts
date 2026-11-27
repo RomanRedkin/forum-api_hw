@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { createHash, randomUUID } from "node:crypto";
 import jwt from "jsonwebtoken";
 
 const accessSecret = process.env.JWT_ACCESS_SECRET;
@@ -19,7 +20,12 @@ export function signRefreshToken(userId: number): string {
         algorithm: "HS256",
         subject: String(userId),
         expiresIn: "7d",
+        jwtid: randomUUID(),
     });
+}
+
+export function hashRefreshToken(token: string): string {
+    return createHash("sha256").update(token).digest("hex");
 }
 
 export function verifyAccessToken(token: string): number {
